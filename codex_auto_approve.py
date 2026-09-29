@@ -200,6 +200,58 @@ class AutoApproveApp:
                             continue
                         button_text = COPILOT_BUTTON_TEXT
                         context_text = COPILOT_SKIP_TEXT
+
+                        skip_labels = [
+                            item
+                            for item in window.descendants(title=COPILOT_SKIP_TEXT)
+                            if item.is_visible()
+                        ]
+                        for button in window.descendants(control_type="Button"):
+                            try:
+                                name = button.element_info.name or ""
+                                if name != COPILOT_BUTTON_TEXT and not name.startswith(
+                                    f"{COPILOT_BUTTON_TEXT} ("
+                                ):
+                                    continue
+                                if not button.is_visible() or not button.is_enabled():
+                                    continue
+
+                                rect = button.rectangle()
+                                window_rect = window.rectangle()
+                                if (
+                                    rect.bottom <= window_rect.top
+                                    or rect.top >= window_rect.bottom
+                                    or rect.right <= window_rect.left
+                                    or rect.left >= window_rect.right
+                                ):
+                                    continue
+
+                                if name == COPILOT_BUTTON_TEXT:
+                                    has_nearby_skip = any(
+                                        0 < skip.rectangle().left - rect.right < 180
+                                        and abs(
+                                            (skip.rectangle().top + skip.rectangle().bottom)
+                                            - (rect.top + rect.bottom)
+                                        )
+                                        < max(80, rect.height())
+                                        for skip in skip_labels
+                                    )
+                                    if not has_nearby_skip:
+                                        continue
+
+                                key = (
+                                    f"{pid}:{rect.left}:{rect.top}:"
+                                    f"{rect.right}:{rect.bottom}"
+                                )
+                                if key in recently_invoked:
+                                    continue
+
+                                button.invoke()
+                                recently_invoked[key] = time.monotonic()
+                                self.events.put(("approved", pid))
+                            except Exception:
+                                continue
+                        continue
                     else:
                         if executable not in ALLOWED_PROCESSES:
                             continue
