@@ -20,7 +20,8 @@ Press **Start** to monitor for prompts and **Stop** to stop approving them. Clos
 the utility also stops the monitor.
 
 Choose **Codex** mode for `Allow once` prompts, or **Copilot** mode for the blue
-`Allow` button shown beside `Skip` in VS Code.
+`Allow` button shown beside `Skip` and the blue `Keep` button shown beside `Undo`
+in VS Code.
 
 ## Important
 

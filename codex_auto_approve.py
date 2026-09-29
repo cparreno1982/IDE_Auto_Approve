@@ -22,6 +22,8 @@ BUTTON_TEXT = "Allow once"
 DENY_TEXT = "Deny"
 COPILOT_BUTTON_TEXT = "Allow"
 COPILOT_SKIP_TEXT = "Skip"
+COPILOT_KEEP_TEXT = "Keep"
+COPILOT_UNDO_TEXT = "Undo"
 POLL_SECONDS = 0.45
 
 
@@ -206,12 +208,23 @@ class AutoApproveApp:
                             for item in window.descendants(title=COPILOT_SKIP_TEXT)
                             if item.is_visible()
                         ]
+                        undo_labels = [
+                            item
+                            for item in window.descendants(title=COPILOT_UNDO_TEXT)
+                            if item.is_visible()
+                        ]
                         for button in window.descendants(control_type="Button"):
                             try:
                                 name = button.element_info.name or ""
-                                if name != COPILOT_BUTTON_TEXT and not name.startswith(
+                                if name == COPILOT_KEEP_TEXT or name.startswith(
+                                    f"{COPILOT_KEEP_TEXT} ("
+                                ):
+                                    action_text = COPILOT_KEEP_TEXT
+                                elif name == COPILOT_BUTTON_TEXT or name.startswith(
                                     f"{COPILOT_BUTTON_TEXT} ("
                                 ):
+                                    action_text = COPILOT_BUTTON_TEXT
+                                else:
                                     continue
                                 if not button.is_visible() or not button.is_enabled():
                                     continue
@@ -226,17 +239,28 @@ class AutoApproveApp:
                                 ):
                                     continue
 
-                                if name == COPILOT_BUTTON_TEXT:
-                                    has_nearby_skip = any(
-                                        0 < skip.rectangle().left - rect.right < 180
+                                if name in {
+                                    COPILOT_BUTTON_TEXT,
+                                    COPILOT_KEEP_TEXT,
+                                }:
+                                    context_labels = (
+                                        undo_labels
+                                        if action_text == COPILOT_KEEP_TEXT
+                                        else skip_labels
+                                    )
+                                    has_nearby_context = any(
+                                        0 < context.rectangle().left - rect.right < 180
                                         and abs(
-                                            (skip.rectangle().top + skip.rectangle().bottom)
+                                            (
+                                                context.rectangle().top
+                                                + context.rectangle().bottom
+                                            )
                                             - (rect.top + rect.bottom)
                                         )
                                         < max(80, rect.height())
-                                        for skip in skip_labels
+                                        for context in context_labels
                                     )
-                                    if not has_nearby_skip:
+                                    if not has_nearby_context:
                                         continue
 
                                 key = (
@@ -248,7 +272,7 @@ class AutoApproveApp:
 
                                 button.invoke()
                                 recently_invoked[key] = time.monotonic()
-                                self.events.put(("approved", pid))
+                                self.events.put(("copilot_approved", (pid, action_text)))
                             except Exception:
                                 continue
                         continue
@@ -340,6 +364,11 @@ class AutoApproveApp:
                         else BUTTON_TEXT
                     )
                     self._log(f"Approved ‘{approved_text}’ in process {value}.")
+                elif kind == "copilot_approved":
+                    pid, action_text = value
+                    self.approval_count += 1
+                    self.count.set(f"Approvals this run: {self.approval_count}")
+                    self._log(f"Approved ‘{action_text}’ in process {pid}.")
                 elif kind == "error":
                     self._log(f"Monitor error: {value}")
         except queue.Empty:
